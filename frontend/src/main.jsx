@@ -7,63 +7,48 @@ const productsFallback = [
   {
     id: 1,
     name: 'Chocolate Fudge Cake',
-    price: 22,
+    price: 550,
     emoji: '🍫',
-    tag: 'Best seller',
-    image:
-      'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=900&q=85'
+    tag: 'Best seller'
   },
   {
     id: 2,
     name: 'Classic Vanilla Cake',
-    price: 20,
-    emoji: '🍰',
-    image:
-      'https://images.unsplash.com/photo-1565958011703-44f9829ba187?auto=format&fit=crop&w=900&q=85'
+    price: 500,
+    emoji: '🍰'
   },
   {
     id: 3,
     name: 'Red Velvet Cake',
-    price: 24,
-    emoji: '❤️',
-    image:
-      'https://images.unsplash.com/photo-1586788680434-30d324b2d46f?auto=format&fit=crop&w=900&q=85'
+    price: 600,
+    emoji: '❤️'
   },
   {
     id: 4,
     name: 'Butter Croissant',
-    price: 3.25,
-    emoji: '🥐',
-    image:
-      'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=900&q=85'
+    price: 120,
+    emoji: '🥐'
   },
   {
     id: 5,
     name: 'Cinnamon Roll',
-    price: 3.5,
+    price: 150,
     emoji: '🍥',
-    tag: 'Best seller',
-    image:
-      'https://images.unsplash.com/photo-1509365465985-25d11c17e812?auto=format&fit=crop&w=900&q=85'
+    tag: 'Best seller'
   },
   {
     id: 6,
     name: 'Sourdough Loaf',
-    price: 6.5,
-    emoji: '🍞',
-    image:
-      'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=85'
+    price: 250,
+    emoji: '🍞'
   },
   {
     id: 7,
     name: 'Baguette',
-    price: 3,
-    emoji: '🥖',
-    image:
-      'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=900&q=85'
+    price: 100,
+    emoji: '🥖'
   }
 ];
-
 const stages = ['placed', 'confirmed', 'preparing', 'ready', 'completed'];
 
 const labels = {
