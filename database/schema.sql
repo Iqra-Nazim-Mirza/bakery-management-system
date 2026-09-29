@@ -1,0 +1,9 @@
+CREATE DATABASE IF NOT EXISTS bakery_bloom; USE bakery_bloom;
+CREATE TABLE products(id INT AUTO_INCREMENT PRIMARY KEY,name VARCHAR(120) NOT NULL,price DECIMAL(10,2) NOT NULL,emoji VARCHAR(10),tag VARCHAR(50),active BOOLEAN DEFAULT TRUE);
+CREATE TABLE customers(id INT AUTO_INCREMENT PRIMARY KEY,name VARCHAR(120),email VARCHAR(160) UNIQUE,phone VARCHAR(30),password_hash VARCHAR(255));
+CREATE TABLE orders(id INT AUTO_INCREMENT PRIMARY KEY,customer_name VARCHAR(120) NOT NULL,fulfillment ENUM('pickup','delivery') DEFAULT 'pickup',notes TEXT,total DECIMAL(10,2) DEFAULT 0,status ENUM('placed','confirmed','preparing','ready','completed','cancelled') DEFAULT 'placed',type ENUM('standard','custom') DEFAULT 'standard',created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE order_items(id INT AUTO_INCREMENT PRIMARY KEY,order_id INT NOT NULL,product_id INT NULL,product_name VARCHAR(120),price DECIMAL(10,2),qty INT,FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE SET NULL);
+CREATE TABLE inventory(id INT AUTO_INCREMENT PRIMARY KEY,name VARCHAR(100) NOT NULL,quantity DECIMAL(10,2) DEFAULT 0,threshold DECIMAL(10,2) DEFAULT 10,unit VARCHAR(20) DEFAULT 'unit');
+CREATE TABLE staff(id INT AUTO_INCREMENT PRIMARY KEY,name VARCHAR(120),email VARCHAR(160) UNIQUE,password_hash VARCHAR(255),role ENUM('admin','staff') DEFAULT 'staff');
+CREATE TABLE payments(id INT AUTO_INCREMENT PRIMARY KEY,order_id INT,amount DECIMAL(10,2),method VARCHAR(30),status VARCHAR(30) DEFAULT 'pending',created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE);
+CREATE TABLE deliveries(id INT AUTO_INCREMENT PRIMARY KEY,order_id INT,customer_address TEXT,driver_name VARCHAR(120),status VARCHAR(30) DEFAULT 'pending',FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE);
