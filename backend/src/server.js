@@ -132,7 +132,48 @@ app.patch("/api/orders/:id/status", async (q, s) => {
 
 
 // ---------------- INVENTORY ----------------
+app.post("/api/inventory", async (q, s) => {
+    try {
+        const {
+            name,
+            quantity,
+            threshold,
+            unit
+        } = q.body;
 
+        if (!name || quantity === undefined) {
+            return s.status(400).json({
+                error: "Ingredient name and quantity are required"
+            });
+        }
+
+        const [result] = await db.query(
+            `INSERT INTO inventory (name, quantity, threshold, unit)
+             VALUES (?, ?, ?, ?)`,
+            [
+                name,
+                quantity,
+                threshold ?? 10,
+                unit || "unit"
+            ]
+        );
+
+        s.status(201).json({
+            id: result.insertId,
+            name,
+            quantity,
+            threshold: threshold ?? 10,
+            unit: unit || "unit"
+        });
+
+    } catch (e) {
+        console.error("Add inventory error:", e);
+
+        s.status(500).json({
+            error: e.message
+        });
+    }
+});
 app.get("/api/inventory", async (q, s) => {
 
     try {

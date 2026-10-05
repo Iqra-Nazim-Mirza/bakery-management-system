@@ -8,23 +8,13 @@ const router = express.Router();
 
 
 // ===============================
-// IMAGE STORAGE
+// IMAGE UPLOAD SETTINGS
 // ===============================
 
 const storage = multer.diskStorage({
-
-     destination: function (req, file, cb) {
+    destination: function (req, file, cb) {
         cb(null, path.join(__dirname, "../../../uploads"));
     },
-
-    filename: function (req, file, cb) {
-        const uniqueName =
-            Date.now() + "-" + file.originalname.replace(/\s+/g, "-");
-
-        cb(null, uniqueName);
-    
-    },
-    
 
     filename: function (req, file, cb) {
         const uniqueName =
@@ -34,17 +24,36 @@ const storage = multer.diskStorage({
     }
 });
 
+
 const upload = multer({
     storage: storage,
 
     fileFilter: function (req, file, cb) {
-        const allowedTypes = /jpeg|jpg|png|webp/;
-        const extension = path.extname(file.originalname).toLowerCase();
 
-        if (allowedTypes.test(extension)) {
+        const allowedMimeTypes = [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/jfif"
+        ];
+
+        const allowedExtensions =
+            /\.(jpg|jpeg|jfif|png|webp)$/i;
+
+        const extensionAllowed =
+            allowedExtensions.test(file.originalname);
+
+        const mimeAllowed =
+            allowedMimeTypes.includes(file.mimetype);
+
+        if (mimeAllowed || extensionAllowed) {
             cb(null, true);
         } else {
-            cb(new Error("Only image files are allowed"));
+            cb(
+                new Error(
+                    "Only JPG, JPEG, JFIF, PNG and WebP images are allowed"
+                )
+            );
         }
     }
 });
@@ -54,7 +63,7 @@ const upload = multer({
 // ADD PRODUCT
 // ===============================
 
-router.post("/", upload.single("image"), (req, res) => {
+router.post("/", upload.single("image"), async (req, res) => {
 
     const {
         name,
@@ -69,7 +78,9 @@ router.post("/", upload.single("image"), (req, res) => {
         });
     }
 
-    const image = req.file ? req.file.filename : null;
+    const image = req.file
+        ? req.file.filename
+        : null;
 
     const sql = `
         INSERT INTO products
@@ -77,28 +88,37 @@ router.post("/", upload.single("image"), (req, res) => {
         VALUES (?, ?, ?, ?, ?)
     `;
 
-    db.query(
-        sql,
-        [name, description, price, category, image],
-        (err, result) => {
+    try {
 
-            if (err) {
-                console.error(err);
+        const [result] = await db.query(
+            sql,
+            [
+                name,
+                description || "",
+                price,
+                category || "Cake",
+                image
+            ]
+        );
 
-                return res.status(500).json({
-                    message: "Failed to add product"
-                });
-            }
+        res.status(201).json({
+            message: "Product added successfully",
+            productId: result.insertId,
 
-            res.status(201).json({
-                message: "Product added successfully",
-                productId: result.insertId,
-                image: image
-                    ? `http://localhost:5000/uploads/${image}`
-                    : null
-            });
-        }
-    );
+            image: image
+                ? `http://127.0.0.1:5000/uploads/${image}`
+                : null
+        });
+
+    } catch (error) {
+
+        console.error("Add product error:", error);
+
+        res.status(500).json({
+            message: "Failed to add product",
+            error: error.message
+        });
+    }
 });
 
 
@@ -106,22 +126,25 @@ router.post("/", upload.single("image"), (req, res) => {
 // GET ALL PRODUCTS
 // ===============================
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
 
-    const sql = "SELECT * FROM products ORDER BY id DESC";
+    try {
 
-    db.query(sql, (err, results) => {
-
-        if (err) {
-            console.error(err);
-
-            return res.status(500).json({
-                message: "Failed to fetch products"
-            });
-        }
+        const [results] = await db.query(
+            "SELECT * FROM products ORDER BY id DESC"
+        );
 
         res.json(results);
-    });
+
+    } catch (error) {
+
+        console.error("Fetch products error:", error);
+
+        res.status(500).json({
+            message: "Failed to fetch products",
+            error: error.message
+        });
+    }
 });
 
 

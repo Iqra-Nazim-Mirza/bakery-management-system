@@ -49,7 +49,14 @@ const productsFallback = [
     emoji: '🥖'
   }
 ];
-const stages = ['placed', 'confirmed', 'preparing', 'ready', 'completed'];
+
+const stages = [
+  'placed',
+  'confirmed',
+  'preparing',
+  'ready',
+  'completed'
+];
 
 const labels = {
   placed: 'Order Placed',
@@ -89,116 +96,253 @@ function productImage(product) {
       'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=900&q=85'
   };
 
+  if (product.image) {
+    return `http://127.0.0.1:5000/uploads/${product.image}`;
+  }
+
   return (
     images[product.name] ||
-    product.image ||
-    product.image_url ||
-    product.imageUrl ||
-    fallbackImages[Number(product.id || 0) % fallbackImages.length]
+    fallbackImages[
+      Number(product.id || 0) % fallbackImages.length
+    ]
   );
 }
+
 function App() {
   const [mode, setMode] = useState('customer');
   const [tab, setTab] = useState('home');
-  const [products, setProducts] = useState(productsFallback);
+
+  const [showAddIngredient, setShowAddIngredient] =
+    useState(false);
+
+  const [products, setProducts] =
+    useState(productsFallback);
+
   const [orders, setOrders] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [cart, setCart] = useState([]);
 
+  const [placingOrder, setPlacingOrder] =
+    useState(false);
+
   useEffect(() => {
     api.get('/products')
-      .then(r => setProducts(r.data))
-      .catch(() => {});
+      .then(response => {
+        setProducts(response.data);
+      })
+      .catch(error => {
+        console.error(
+          'Products could not be loaded:',
+          error
+        );
+      });
 
     api.get('/orders')
-      .then(r => setOrders(r.data))
-      .catch(() => {});
+      .then(response => {
+        setOrders(response.data);
+      })
+      .catch(error => {
+        console.error(
+          'Orders could not be loaded:',
+          error
+        );
+      });
 
     api.get('/inventory')
-      .then(r => setInventory(r.data))
-      .catch(() => {});
+      .then(response => {
+        setInventory(response.data);
+      })
+      .catch(error => {
+        console.error(
+          'Inventory could not be loaded:',
+          error
+        );
+      });
   }, []);
 
   const total = cart.reduce(
-    (sum, item) => sum + Number(item.price) * item.qty,
+    (sum, item) =>
+      sum + Number(item.price) * item.qty,
     0
   );
 
-  const count = cart.reduce((sum, item) => sum + item.qty, 0);
+  const count = cart.reduce(
+    (sum, item) => sum + item.qty,
+    0
+  );
 
   const add = product =>
     setCart(current => {
-      const existing = current.find(item => item.id === product.id);
+      const existing = current.find(
+        item => item.id === product.id
+      );
 
       if (existing) {
         return current.map(item =>
           item.id === product.id
-            ? { ...item, qty: item.qty + 1 }
+            ? {
+                ...item,
+                qty: item.qty + 1
+              }
             : item
         );
       }
 
-      return [...current, { ...product, qty: 1 }];
+      return [
+        ...current,
+        {
+          ...product,
+          qty: 1
+        }
+      ];
     });
 
   async function place(event) {
     event.preventDefault();
 
+    if (placingOrder) {
+      return;
+    }
+
+    if (cart.length === 0) {
+      alert('Your cart is empty.');
+      return;
+    }
+
     const name = event.target.name.value;
-    const fulfillment = event.target.fulfillment.value;
+    const fulfillment =
+      event.target.fulfillment.value;
     const notes = event.target.notes.value;
 
-    const response = await api.post('/orders', {
-      customerName: name,
-      fulfillment,
-      notes,
-      total,
-      items: cart.map(item => ({
-        productId: item.id,
-        name: item.name,
-        price: item.price,
-        qty: item.qty
-      }))
-    });
+    setPlacingOrder(true);
 
-    setOrders(current => [response.data, ...current]);
-    setCart([]);
-    setTab('tracking');
+    try {
+      const response = await api.post('/orders', {
+        customerName: name,
+        fulfillment,
+        notes,
+        total,
+        type: 'standard',
+
+        items: cart.map(item => ({
+          productId: item.id,
+          name: item.name,
+          price: item.price,
+          qty: item.qty
+        }))
+      });
+
+      setOrders(current => [
+        response.data,
+        ...current
+      ]);
+
+      setCart([]);
+      setTab('tracking');
+
+    } catch (error) {
+      console.error(
+        'Order failed:',
+        error
+      );
+
+      alert(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        'Could not place the order.'
+      );
+
+    } finally {
+      setPlacingOrder(false);
+    }
   }
 
   async function custom(event) {
     event.preventDefault();
 
-    const response = await api.post('/orders', {
-      customerName: event.target.name.value,
-      fulfillment: 'pickup',
-      type: 'custom',
-      total: 0,
-      notes: `₹{event.target.type.value} / ₹{event.target.flavour.value} / ₹{event.target.design.value} / ₹{event.target.message.value}`
-    });
+    const name = event.target.name.value;
+    const type = event.target.type.value;
+    const flavour =
+      event.target.flavour.value;
+    const design =
+      event.target.design.value;
+    const message =
+      event.target.message.value;
 
-    setOrders(current => [response.data, ...current]);
-    setTab('tracking');
+    try {
+      const response = await api.post(
+        '/orders',
+        {
+          customerName: name,
+          fulfillment: 'pickup',
+          type: 'custom',
+          total: 0,
+          notes:
+            `${type} / ${flavour} / ${design} / ${message}`
+        }
+      );
+
+      setOrders(current => [
+        response.data,
+        ...current
+      ]);
+
+      setTab('tracking');
+
+    } catch (error) {
+      console.error(
+        'Custom order failed:',
+        error
+      );
+
+      alert(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        'Could not submit custom order.'
+      );
+    }
   }
 
   async function status(id, newStatus) {
-    await api.patch(`/orders/₹{id}/status`, {
-      status: newStatus
-    });
+    try {
+      await api.patch(
+        `/orders/${id}/status`,
+        {
+          status: newStatus
+        }
+      );
 
-    setOrders(current =>
-      current.map(order =>
-        order.id === id
-          ? { ...order, status: newStatus }
-          : order
-      )
-    );
+      setOrders(current =>
+        current.map(order =>
+          order.id === id
+            ? {
+                ...order,
+                status: newStatus
+              }
+            : order
+        )
+      );
+
+    } catch (error) {
+      console.error(
+        'Status update failed:',
+        error
+      );
+
+      alert(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        'Could not update order status.'
+      );
+    }
   }
 
   function ProductCard({ product }) {
     return (
       <article className="product-card">
+
         <div className="product-image">
+
           <img
             src={productImage(product)}
             alt={product.name}
@@ -209,18 +353,27 @@ function App() {
               {product.tag}
             </span>
           )}
+
         </div>
 
         <div className="product-info">
+
           <span className="product-category">
-            Freshly baked
+            {product.category ||
+              'Freshly baked'}
           </span>
 
           <h3>{product.name}</h3>
 
+          {product.description && (
+            <p>{product.description}</p>
+          )}
+
           <div className="product-bottom">
+
             <strong className="price">
-              ₹{Number(product.price).toFixed(2)}
+              ₹
+              {Number(product.price).toFixed(2)}
             </strong>
 
             <button
@@ -229,18 +382,25 @@ function App() {
             >
               Add
             </button>
+
           </div>
+
         </div>
+
       </article>
     );
   }
 
   const customer = () => {
+
     if (tab === 'home') {
       return (
         <>
+
           <section className="hero">
+
             <div className="hero-content">
+
               <div className="eyebrow">
                 <span></span>
                 BAKED FRESH EVERY DAY
@@ -252,16 +412,20 @@ function App() {
               </h1>
 
               <p>
-                Cakes, pastries and little treats made with
-                care for every celebration, craving and
-                ordinary Tuesday.
-                From our oven to your heart..
+                Cakes, pastries and little treats
+                made with care for every
+                celebration, craving and ordinary
+                Tuesday. From our oven to your
+                heart.
               </p>
 
               <div className="hero-actions">
+
                 <button
                   className="primary-button"
-                  onClick={() => setTab('products')}
+                  onClick={() =>
+                    setTab('products')
+                  }
                 >
                   Explore our menu
                   <span>→</span>
@@ -269,13 +433,17 @@ function App() {
 
                 <button
                   className="secondary-button"
-                  onClick={() => setTab('custom')}
+                  onClick={() =>
+                    setTab('custom')
+                  }
                 >
                   Create a custom cake
                 </button>
+
               </div>
 
               <div className="hero-stats">
+
                 <div>
                   <strong>25+</strong>
                   <span>Fresh treats</span>
@@ -295,45 +463,71 @@ function App() {
                   <strong>Daily</strong>
                   <span>Freshly baked</span>
                 </div>
+
               </div>
+
             </div>
 
             <div className="hero-image-wrap">
-              <div className="hero-image">
+
+              
+
+                <div className="hero-image">
                 <img
-                  src="https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=1200&q=90"
-                  alt="Beautiful chocolate cake"
-                />
-              </div>
+                   src="/bakery-hero.png"
+                    alt="CakeStory bakery storefront"
+                       />
+                        </div>
 
               <div className="floating-note">
+
                 <span>♡</span>
+
                 <div>
-                  <strong>Made with care</strong>
-                  <small>Every single day</small>
+                  <strong>
+                    Made with care
+                  </strong>
+
+                  <small>
+                    Every single day
+                  </small>
                 </div>
+
               </div>
 
-              <div className="hero-circle">BAKERY BLOOM</div>
+              <div className="hero-circle">
+                BAKERY BLOOM
+              </div>
+
             </div>
+
           </section>
 
           <section className="section">
+
             <div className="section-heading">
+
               <div>
-                <span className="eyebrow">FROM OUR OVEN</span>
+                <span className="eyebrow">
+                  FROM OUR OVEN
+                </span>
+
                 <h2>Our favourites</h2>
               </div>
 
               <button
                 className="text-button"
-                onClick={() => setTab('products')}
+                onClick={() =>
+                  setTab('products')
+                }
               >
                 View all products →
               </button>
+
             </div>
 
             <div className="product-grid">
+
               {products
                 .filter(product => product.tag)
                 .slice(0, 4)
@@ -343,12 +537,18 @@ function App() {
                     key={product.id}
                   />
                 ))}
+
             </div>
+
           </section>
 
           <section className="custom-banner">
+
             <div>
-              <span className="eyebrow">FOR YOUR SPECIAL MOMENTS</span>
+
+              <span className="eyebrow">
+                FOR YOUR SPECIAL MOMENTS
+              </span>
 
               <h2>
                 Dream it.
@@ -356,18 +556,24 @@ function App() {
               </h2>
 
               <p>
-                Tell us what you have in mind and create a
-                cake that's completely yours.
+                Tell us what you have in mind
+                and create a cake that's
+                completely yours.
               </p>
 
               <button
                 className="light-button"
-                onClick={() => setTab('custom')}
+                onClick={() =>
+                  setTab('custom')
+                }
               >
                 Start a custom order →
               </button>
+
             </div>
+
           </section>
+
         </>
       );
     }
@@ -375,23 +581,35 @@ function App() {
     if (tab === 'products') {
       return (
         <>
+
           <div className="page-heading">
-            <span className="eyebrow">OUR MENU</span>
-            <h1>Everything we bake</h1>
+
+            <span className="eyebrow">
+              OUR MENU
+            </span>
+
+            <h1>
+              Everything we bake
+            </h1>
+
             <p>
-              Fresh favourites, sweet treats and bakery
-              classics.
+              Fresh favourites, sweet treats
+              and bakery classics.
             </p>
+
           </div>
 
           <div className="product-grid">
+
             {products.map(product => (
               <ProductCard
                 product={product}
                 key={product.id}
               />
             ))}
+
           </div>
+
         </>
       );
     }
@@ -399,48 +617,85 @@ function App() {
     if (tab === 'cart') {
       return (
         <>
+
           <div className="page-heading">
-            <span className="eyebrow">YOUR SELECTION</span>
+
+            <span className="eyebrow">
+              YOUR SELECTION
+            </span>
+
             <h1>Your cart</h1>
+
           </div>
 
           {!cart.length ? (
             <Empty text="Your cart is waiting for something sweet." />
           ) : (
             <>
+
               <div className="cart-box">
+
                 {cart.map(item => (
-                  <div className="cartline" key={item.id}>
+                  <div
+                    className="cartline"
+                    key={item.id}
+                  >
+
                     <div className="cart-product">
+
                       <img
                         src={productImage(item)}
                         alt={item.name}
                       />
 
                       <div>
-                        <strong>{item.name}</strong>
+
+                        <strong>
+                          {item.name}
+                        </strong>
+
                         <small>
-                          ₹{Number(item.price).toFixed(2)}
+                          ₹
+                          {Number(
+                            item.price
+                          ).toFixed(2)}
                         </small>
+
                       </div>
+
                     </div>
 
                     <div className="quantity">
+
                       <button
                         onClick={() =>
                           setCart(current =>
-                            current.flatMap(item =>
-                              item.id === item.id &&
-                              item.qty === 1
-                                ? []
-                                : item.id === item.id
-                                ? [
-                                    {
-                                      ...item,
-                                      qty: item.qty - 1
-                                    }
-                                  ]
-                                : [item]
+                            current.flatMap(
+                              cartItem => {
+
+                                if (
+                                  cartItem.id !==
+                                  item.id
+                                ) {
+                                  return [
+                                    cartItem
+                                  ];
+                                }
+
+                                if (
+                                  cartItem.qty === 1
+                                ) {
+                                  return [];
+                                }
+
+                                return [
+                                  {
+                                    ...cartItem,
+                                    qty:
+                                      cartItem.qty - 1
+                                  }
+                                ];
+                              }
                             )
                           )
                         }
@@ -448,42 +703,60 @@ function App() {
                         −
                       </button>
 
-                      <span>{item.qty}</span>
+                      <span>
+                        {item.qty}
+                      </span>
 
                       <button
                         onClick={() =>
                           setCart(current =>
-                            current.map(cartItem =>
-                              cartItem.id === item.id
-                                ? {
-                                    ...cartItem,
-                                    qty: cartItem.qty + 1
-                                  }
-                                : cartItem
+                            current.map(
+                              cartItem =>
+                                cartItem.id ===
+                                item.id
+                                  ? {
+                                      ...cartItem,
+                                      qty:
+                                        cartItem.qty +
+                                        1
+                                    }
+                                  : cartItem
                             )
                           )
                         }
                       >
                         +
                       </button>
+
                     </div>
+
                   </div>
                 ))}
+
               </div>
 
               <div className="summary">
+
                 <span>Total</span>
-                <b>₹{total.toFixed(2)}</b>
+
+                <b>
+                  ₹{total.toFixed(2)}
+                </b>
+
               </div>
 
               <button
                 className="primary-button full-button"
-                onClick={() => setTab('checkout')}
+                onClick={() =>
+                  setTab('checkout')
+                }
               >
                 Continue to checkout →
               </button>
+
             </>
           )}
+
         </>
       );
     }
@@ -491,39 +764,76 @@ function App() {
     if (tab === 'checkout') {
       return (
         <>
+
           <div className="page-heading">
-            <span className="eyebrow">ALMOST THERE</span>
+
+            <span className="eyebrow">
+              ALMOST THERE
+            </span>
+
             <h1>Checkout</h1>
+
           </div>
 
-          <form className="form-card" onSubmit={place}>
+          <form
+            className="form-card"
+            onSubmit={place}
+          >
+
             <label>
               Name
-              <input name="name" required />
+
+              <input
+                name="name"
+                required
+              />
             </label>
 
             <label>
               Fulfillment
+
               <select name="fulfillment">
-                <option value="pickup">Pickup</option>
-                <option value="delivery">Delivery</option>
+                <option value="pickup">
+                  Pickup
+                </option>
+
+                <option value="delivery">
+                  Delivery
+                </option>
               </select>
+
             </label>
 
             <label>
               Notes
-              <textarea name="notes" />
+
+              <textarea
+                name="notes"
+              />
             </label>
 
             <div className="summary">
+
               <span>Total</span>
-              <b>₹{total.toFixed(2)}</b>
+
+              <b>
+                ₹{total.toFixed(2)}
+              </b>
+
             </div>
 
-            <button className="primary-button full-button">
-              Place order →
+            <button
+              className="primary-button full-button"
+              type="submit"
+              disabled={placingOrder}
+            >
+              {placingOrder
+                ? 'Placing order...'
+                : 'Place order →'}
             </button>
+
           </form>
+
         </>
       );
     }
@@ -531,23 +841,39 @@ function App() {
     if (tab === 'custom') {
       return (
         <>
+
           <div className="page-heading">
-            <span className="eyebrow">MADE JUST FOR YOU</span>
+
+            <span className="eyebrow">
+              MADE JUST FOR YOU
+            </span>
+
             <h1>Custom cake</h1>
+
             <p>
-              Tell us what you're imagining and we'll take it
-              from there.
+              Tell us what you're imagining
+              and we'll take it from there.
             </p>
+
           </div>
 
-          <form className="form-card" onSubmit={custom}>
+          <form
+            className="form-card"
+            onSubmit={custom}
+          >
+
             <label>
               Name
-              <input name="name" required />
+
+              <input
+                name="name"
+                required
+              />
             </label>
 
             <label>
               Cake type
+
               <select name="type">
                 <option>Round</option>
                 <option>Sheet</option>
@@ -557,6 +883,7 @@ function App() {
 
             <label>
               Flavour
+
               <select name="flavour">
                 <option>Chocolate</option>
                 <option>Vanilla</option>
@@ -566,18 +893,29 @@ function App() {
 
             <label>
               Design / theme
-              <textarea name="design" />
+
+              <textarea
+                name="design"
+              />
             </label>
 
             <label>
               Message on cake
-              <input name="message" />
+
+              <input
+                name="message"
+              />
             </label>
 
-            <button className="primary-button full-button">
+            <button
+              className="primary-button full-button"
+              type="submit"
+            >
               Submit custom request →
             </button>
+
           </form>
+
         </>
       );
     }
@@ -585,9 +923,15 @@ function App() {
     if (tab === 'tracking') {
       return (
         <>
+
           <div className="page-heading">
-            <span className="eyebrow">YOUR ORDER</span>
+
+            <span className="eyebrow">
+              YOUR ORDER
+            </span>
+
             <h1>Order tracking</h1>
+
           </div>
 
           {orders[0] ? (
@@ -595,28 +939,45 @@ function App() {
           ) : (
             <Empty text="No orders yet." />
           )}
+
         </>
       );
     }
 
     return (
       <>
+
         <div className="page-heading">
-          <span className="eyebrow">YOUR ORDERS</span>
+
+          <span className="eyebrow">
+            YOUR ORDERS
+          </span>
+
           <h1>Order history</h1>
+
         </div>
 
         {orders.length ? (
           <div className="order-list">
+
             {orders.map(order => (
-              <div className="order" key={order.id}>
+              <div
+                className="order"
+                key={order.id}
+              >
+
                 <div>
-                  <b>{order.customerName}</b>
+
+                  <b>
+                    {order.customerName}
+                  </b>
+
                   <small>
                     {order.type === 'custom'
                       ? 'Custom order'
                       : order.fulfillment}
                   </small>
+
                 </div>
 
                 <span className="badge">
@@ -624,74 +985,193 @@ function App() {
                 </span>
 
                 <strong>
-                  ₹{Number(order.total).toFixed(2)}
+                  ₹
+                  {Number(
+                    order.total
+                  ).toFixed(2)}
                 </strong>
+
               </div>
             ))}
+
           </div>
         ) : (
           <Empty text="No previous orders." />
         )}
+
       </>
     );
   };
 
   const admin = () => {
+
     if (tab === 'orders') {
       return (
         <>
+
           <div className="admin-heading">
-            <span className="eyebrow">MANAGEMENT</span>
+
+            <span className="eyebrow">
+              MANAGEMENT
+            </span>
+
             <h1>Orders</h1>
+
           </div>
 
           <div className="order-list">
+
             {orders.map(order => (
-              <div className="order admin-order" key={order.id}>
+              <div
+                className="order admin-order"
+                key={order.id}
+              >
+
                 <div>
-                  <b>{order.customerName}</b>
+
+                  <b>
+                    {order.customerName}
+                  </b>
+
                   <small>
                     {order.type === 'custom'
                       ? 'Custom · '
                       : ''}
                     {order.fulfillment} · ₹
-                    {Number(order.total).toFixed(2)}
+                    {Number(
+                      order.total
+                    ).toFixed(2)}
                   </small>
+
                 </div>
 
                 <select
                   value={order.status}
                   onChange={event =>
-                    status(order.id, event.target.value)
+                    status(
+                      order.id,
+                      event.target.value
+                    )
                   }
                 >
+
                   {stages.map(stage => (
-                    <option value={stage} key={stage}>
+                    <option
+                      value={stage}
+                      key={stage}
+                    >
                       {labels[stage]}
                     </option>
                   ))}
+
                 </select>
+
               </div>
             ))}
+
           </div>
+
         </>
       );
     }
-        if (tab === 'add-product') {
+
+    if (tab === 'products') {
       return (
         <>
+
           <div className="admin-heading">
-            <span className="eyebrow">PRODUCT MANAGEMENT</span>
+
+            <span className="eyebrow">
+              PRODUCT MANAGEMENT
+            </span>
+
+            <h1>Products</h1>
+
+            <p>
+              View all products available
+              in the bakery menu.
+            </p>
+
+          </div>
+
+          <div className="admin-product-list">
+
+            {products.map(product => (
+              <div
+                className="admin-product-card"
+                key={product.id}
+              >
+
+                <img
+                  src={productImage(product)}
+                  alt={product.name}
+                />
+
+                <div>
+
+                  <span className="eyebrow">
+                    {product.category ||
+                      'Bakery item'}
+                  </span>
+
+                  <h3>
+                    {product.name}
+                  </h3>
+
+                  {product.description && (
+                    <p>
+                      {product.description}
+                    </p>
+                  )}
+
+                  <strong>
+                    ₹
+                    {Number(
+                      product.price
+                    ).toFixed(2)}
+                  </strong>
+
+                </div>
+
+              </div>
+            ))}
+
+          </div>
+
+        </>
+      );
+    }
+
+    if (tab === 'add-product') {
+      return (
+        <>
+
+          <div className="admin-heading">
+
+            <span className="eyebrow">
+              PRODUCT MANAGEMENT
+            </span>
+
             <h1>Add Product</h1>
-            <p>Add a new bakery item to the customer menu.</p>
+
+            <p>
+              Add a new bakery item to
+              the customer menu.
+            </p>
+
           </div>
 
           <AddProduct
-            onProductAdded={(product) => {
-              setProducts(current => [product, ...current]);
+            onProductAdded={product => {
+              setProducts(current => [
+                product,
+                ...current
+              ]);
+
               setTab('products');
             }}
           />
+
         </>
       );
     }
@@ -699,115 +1179,587 @@ function App() {
     if (tab === 'inventory') {
       return (
         <>
+
           <div className="admin-heading">
-            <span className="eyebrow">STOCK CONTROL</span>
-            <h1>Inventory</h1>
+
+            <span className="eyebrow">
+              STOCK CONTROL
+            </span>
+
+            <div className="inventory-heading-row">
+
+              <div>
+
+                <h1>Inventory</h1>
+
+                <p>
+                  Manage bakery ingredients
+                  and stock levels.
+                </p>
+
+              </div>
+
+              <button
+                className="primary-button"
+                onClick={() =>
+                  setShowAddIngredient(true)
+                }
+              >
+                + Add Ingredient
+              </button>
+
+            </div>
+
           </div>
 
           <div className="inventory-card">
-            {inventory.map(item => (
-              <div className="stock" key={item.id || item.name}>
-                <div className="stock-name">
-                  <strong>{item.name}</strong>
-                  <small>
-                    {item.qty} units available
-                  </small>
-                </div>
 
-                <div className="bar">
-                  <i
-                    style={{
-                      width:
-                        Math.min(Number(item.qty), 100) + '%'
-                    }}
-                  />
-                </div>
+            {inventory.length === 0 ? (
 
-                <b
-                  className={
-                    item.qty <= item.threshold
-                      ? 'low-stock'
-                      : 'ok-stock'
+              <div className="empty-state">
+
+                <h3>
+                  No ingredients yet
+                </h3>
+
+                <p>
+                  Add ingredients to start
+                  managing your bakery stock.
+                </p>
+
+                <button
+                  className="primary-button"
+                  onClick={() =>
+                    setShowAddIngredient(true)
                   }
                 >
-                  {item.qty <= item.threshold ? 'Low' : 'OK'}
-                </b>
+                  + Add Ingredient
+                </button>
+
               </div>
-            ))}
+
+            ) : (
+
+              <div className="inventory-grid">
+
+                {inventory.map(item => (
+
+                  <div
+                    className="inventory-card-item"
+                    key={item.id}
+                  >
+
+                    <div className="inventory-card-top">
+
+                      <div>
+
+                        <h3>
+                          {item.name}
+                        </h3>
+
+                        <p>
+                          {item.unit ||
+                            'unit'}
+                        </p>
+
+                      </div>
+
+                      <span
+                        className={
+                          Number(
+                            item.quantity
+                          ) <=
+                          Number(
+                            item.threshold
+                          )
+                            ? 'stock-badge low'
+                            : 'stock-badge'
+                        }
+                      >
+                        {Number(
+                          item.quantity
+                        ) <=
+                        Number(
+                          item.threshold
+                        )
+                          ? 'Low stock'
+                          : 'In stock'}
+                      </span>
+
+                    </div>
+
+                    <div className="inventory-quantity">
+
+                      <strong>
+                        {item.quantity}
+                      </strong>
+
+                      <span>
+                        {item.unit ||
+                          'unit'}
+                      </span>
+
+                    </div>
+
+                    <p className="inventory-threshold">
+
+                      Low-stock threshold:
+                      {' '}
+                      {item.threshold}
+                      {' '}
+                      {item.unit ||
+                        'unit'}
+
+                    </p>
+
+                    <div className="inventory-actions">
+
+                      <button
+                        className="secondary-button"
+                        onClick={async () => {
+
+                          const newQuantity =
+                            prompt(
+                              `Enter new quantity for ${item.name}:`,
+                              item.quantity
+                            );
+
+                          if (
+                            newQuantity ===
+                              null ||
+                            newQuantity ===
+                              '' ||
+                            isNaN(newQuantity)
+                          ) {
+                            return;
+                          }
+
+                          try {
+
+                            await api.patch(
+                              `/inventory/${item.id}`,
+                              {
+                                quantity:
+                                  Number(
+                                    newQuantity
+                                  )
+                              }
+                            );
+
+                            setInventory(
+                              current =>
+                                current.map(
+                                  stock =>
+                                    stock.id ===
+                                    item.id
+                                      ? {
+                                          ...stock,
+                                          quantity:
+                                            Number(
+                                              newQuantity
+                                            )
+                                        }
+                                      : stock
+                                )
+                            );
+
+                          } catch (error) {
+
+                            console.error(
+                              error
+                            );
+
+                            alert(
+                              error.response
+                                ?.data
+                                ?.error ||
+                              'Could not update inventory.'
+                            );
+                          }
+
+                        }}
+                      >
+                        Update Quantity
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                ))}
+
+              </div>
+
+            )}
+
           </div>
+
+          {showAddIngredient && (
+
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background:
+                  'rgba(0,0,0,0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent:
+                  'center',
+                zIndex: 9999,
+                padding: '20px'
+              }}
+            >
+
+              <div
+                style={{
+                  background: 'white',
+                  width: '90%',
+                  maxWidth: '500px',
+                  padding: '30px',
+                  borderRadius: '20px',
+                  maxHeight: '90vh',
+                  overflowY: 'auto'
+                }}
+              >
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent:
+                      'space-between',
+                    alignItems: 'center',
+                    marginBottom: '20px'
+                  }}
+                >
+
+                  <div>
+
+                    <span className="eyebrow">
+                      STOCK CONTROL
+                    </span>
+
+                    <h2>
+                      Add Ingredient
+                    </h2>
+
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowAddIngredient(
+                        false
+                      )
+                    }
+                    style={{
+                      border: 'none',
+                      background:
+                        'transparent',
+                      fontSize: '28px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ×
+                  </button>
+
+                </div>
+
+                <form
+                  onSubmit={async event => {
+
+                    event.preventDefault();
+
+                    const form =
+                      event.target;
+
+                    const ingredient = {
+                      name:
+                        form.name.value,
+                      quantity:
+                        Number(
+                          form.quantity.value
+                        ),
+                      threshold:
+                        Number(
+                          form.threshold.value
+                        ),
+                      unit:
+                        form.unit.value
+                    };
+
+                    try {
+
+                      const response =
+                        await api.post(
+                          '/inventory',
+                          ingredient
+                        );
+
+                      setInventory(
+                        current => [
+                          ...current,
+                          response.data
+                        ]
+                      );
+
+                      setShowAddIngredient(
+                        false
+                      );
+
+                    } catch (error) {
+
+                      console.error(
+                        'Add ingredient failed:',
+                        error
+                      );
+
+                      alert(
+                        error.response
+                          ?.data
+                          ?.error ||
+                        error.response
+                          ?.data
+                          ?.message ||
+                        'Could not add ingredient.'
+                      );
+                    }
+
+                  }}
+                >
+
+                  <label>
+                    Ingredient Name
+
+                    <input
+                      name="name"
+                      type="text"
+                      placeholder="e.g. Flour"
+                      required
+                    />
+
+                  </label>
+
+                  <label>
+                    Quantity
+
+                    <input
+                      name="quantity"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g. 50"
+                      required
+                    />
+
+                  </label>
+
+                  <label>
+                    Unit
+
+                    <select
+                      name="unit"
+                      defaultValue="kg"
+                    >
+                      <option value="kg">
+                        kg
+                      </option>
+
+                      <option value="g">
+                        g
+                      </option>
+
+                      <option value="litre">
+                        litre
+                      </option>
+
+                      <option value="ml">
+                        ml
+                      </option>
+
+                      <option value="pcs">
+                        pcs
+                      </option>
+
+                      <option value="unit">
+                        unit
+                      </option>
+                    </select>
+
+                  </label>
+
+                  <label>
+                    Low Stock Threshold
+
+                    <input
+                      name="threshold"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      defaultValue="10"
+                      required
+                    />
+
+                  </label>
+
+                  <button
+                    className="primary-button full-button"
+                    type="submit"
+                  >
+                    Add Ingredient
+                  </button>
+
+                </form>
+
+              </div>
+
+            </div>
+
+          )}
+
         </>
       );
     }
 
     return (
       <>
+
         <div className="admin-heading">
-          <span className="eyebrow">BAKERY BLOOM</span>
+
+          <span className="eyebrow">
+            BAKERY BLOOM
+          </span>
+
           <h1>Dashboard</h1>
-          <p>Here's what's happening today.</p>
+
+          <p>
+            Here's what's happening today.
+          </p>
+
         </div>
 
         <div className="stats">
+
           <div>
+
             <span>ORDERS</span>
-            <b>{orders.length}</b>
-            <small>Total orders</small>
+
+            <b>
+              {orders.length}
+            </b>
+
+            <small>
+              Total orders
+            </small>
+
           </div>
 
           <div>
+
             <span>SALES</span>
+
             <b>
+
               ₹
               {orders
                 .reduce(
                   (sum, order) =>
-                    sum + Number(order.total),
+                    sum +
+                    Number(
+                      order.total
+                    ),
                   0
                 )
                 .toFixed(2)}
+
             </b>
-            <small>Total sales</small>
+
+            <small>
+              Total sales
+            </small>
+
           </div>
 
           <div>
+
             <span>STOCK</span>
+
             <b>
               {
                 inventory.filter(
-                  item => item.qty <= item.threshold
+                  item =>
+                    Number(
+                      item.quantity
+                    ) <=
+                    Number(
+                      item.threshold
+                    )
                 ).length
               }
             </b>
-            <small>Low stock items</small>
+
+            <small>
+              Low stock items
+            </small>
+
           </div>
+
         </div>
 
         <section className="panel">
+
           <div className="panel-heading">
-            <h3>Recent orders</h3>
-            <span>Latest activity</span>
+
+            <h3>
+              Recent orders
+            </h3>
+
+            <span>
+              Latest activity
+            </span>
+
           </div>
 
-          {orders.slice(0, 5).map(order => (
-            <div className="order" key={order.id}>
-              <span>{order.customerName}</span>
+          {orders
+            .slice(0, 5)
+            .map(order => (
 
-              <span className="badge">
-                {labels[order.status]}
-              </span>
-            </div>
-          ))}
+              <div
+                className="order"
+                key={order.id}
+              >
+
+                <span>
+                  {order.customerName}
+                </span>
+
+                <span className="badge">
+                  {labels[order.status]}
+                </span>
+
+              </div>
+
+            ))}
+
         </section>
+
       </>
     );
   };
 
   return (
     <>
+
       <div className="modebar">
+
         <div>
+
           <button
-            className={mode === 'customer' ? 'active' : ''}
+            className={
+              mode === 'customer'
+                ? 'active'
+                : ''
+            }
             onClick={() => {
               setMode('customer');
               setTab('home');
@@ -817,7 +1769,11 @@ function App() {
           </button>
 
           <button
-            className={mode === 'admin' ? 'active' : ''}
+            className={
+              mode === 'admin'
+                ? 'active'
+                : ''
+            }
             onClick={() => {
               setMode('admin');
               setTab('dash');
@@ -825,34 +1781,63 @@ function App() {
           >
             Staff & Admin
           </button>
+
         </div>
+
       </div>
 
       {mode === 'customer' ? (
+
         <>
+
           <header className="site-header">
+
             <button
               className="brand"
-              onClick={() => setTab('home')}
+              onClick={() =>
+                setTab('home')
+              }
             >
-              <span className="brand-mark">B</span>
+
+              <span className="brand-mark">
+                B
+              </span>
 
               <span>
-                <strong>Bakery Bloom</strong>
-                <small>BAKED WITH CARE</small>
+
+                <strong>
+                  Bakery Bloom
+                </strong>
+
+                <small>
+                  BAKED WITH CARE
+                </small>
+
               </span>
+
             </button>
 
             <button
               className="cart-button"
-              onClick={() => setTab('cart')}
+              onClick={() =>
+                setTab('cart')
+              }
             >
-              <span>Cart</span>
-              <b>{count}</b>
+
+              <span>
+                Cart
+              </span>
+
+              <b>
+                {count}
+              </b>
+
             </button>
+
           </header>
 
           <nav className="customer-nav">
+
             {[
               ['home', 'Home'],
               ['products', 'Menu'],
@@ -861,14 +1846,23 @@ function App() {
               ['tracking', 'Tracking'],
               ['history', 'History']
             ].map(item => (
+
               <button
-                className={tab === item[0] ? 'active' : ''}
-                onClick={() => setTab(item[0])}
+                className={
+                  tab === item[0]
+                    ? 'active'
+                    : ''
+                }
+                onClick={() =>
+                  setTab(item[0])
+                }
                 key={item[0]}
               >
                 {item[1]}
               </button>
+
             ))}
+
           </nav>
 
           <main className="customer-main">
@@ -876,49 +1870,83 @@ function App() {
           </main>
 
           <footer>
+
             <div>
-              <strong>Bakery Bloom</strong>
-              <span>Freshly baked, thoughtfully made.</span>
+
+              <strong>
+                Bakery Bloom
+              </strong>
+
+              <span>
+                Freshly baked,
+                thoughtfully made.
+              </span>
+
             </div>
 
-            <span>© 2026 Bakery Bloom</span>
+            <span>
+              © 2026 Bakery Bloom
+            </span>
+
           </footer>
+
         </>
+
       ) : (
+
         <div className="admin">
+
           <aside className="admin-sidebar">
+
             <div className="admin-brand">
-              <span className="brand-mark">B</span>
-              <strong>Bakery<br />Bloom</strong>
+
+              <span className="brand-mark">
+                B
+              </span>
+
+              <strong>
+                Bakery
+                <br />
+                Bloom
+              </strong>
+
             </div>
 
             <span className="sidebar-label">
               WORKSPACE
             </span>
-            
-            
 
-              {[
-                 ['dash', 'Dashboard'],
-                 ['orders', 'Orders'],
-                 ['products', 'Products'],
-                 ['add-product', 'Add Product'],
-                  ['inventory', 'Inventory']
-                 ].map(([key, label]) => (
+            {[
+              ['dash', 'Dashboard'],
+              ['orders', 'Orders'],
+              ['products', 'Products'],
+              ['add-product', 'Add Product'],
+              ['inventory', 'Inventory']
+            ].map(
+              ([key, label]) => (
 
-  <button
-    className={tab === key ? 'active' : ''}
-    onClick={() => setTab(key)}
-    key={key}
-  >
-    {label}
-  </button>
+                <button
+                  className={
+                    tab === key
+                      ? 'active'
+                      : ''
+                  }
+                  onClick={() =>
+                    setTab(key)
+                  }
+                  key={key}
+                >
+                  {label}
+                </button>
 
-
-))}
+              )
+            )}
 
             <div className="sidebar-bottom">
-              <span>STAFF MODE</span>
+
+              <span>
+                STAFF MODE
+              </span>
 
               <button
                 onClick={() => {
@@ -928,61 +1956,106 @@ function App() {
               >
                 ← Customer Portal
               </button>
+
             </div>
+
           </aside>
 
           <main className="admin-main">
             {admin()}
           </main>
+
         </div>
+
       )}
+
     </>
   );
 }
 
 function AddProduct({ onProductAdded }) {
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState('');
-  const [category, setCategory] = useState('Cake');
-  const [image, setImage] = useState(null);
-  const [message, setMessage] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [name, setName] =
+    useState('');
+
+  const [description, setDescription] =
+    useState('');
+
+  const [price, setPrice] =
+    useState('');
+
+  const [category, setCategory] =
+    useState('Cake');
+
+  const [image, setImage] =
+    useState(null);
+
+  const [message, setMessage] =
+    useState('');
+
+  const [saving, setSaving] =
+    useState(false);
 
   async function handleSubmit(event) {
 
     event.preventDefault();
 
     if (!name || !price || !image) {
-      setMessage('Please enter the product name, price and image.');
+
+      setMessage(
+        'Please enter the product name, price and image.'
+      );
+
       return;
     }
 
-    const formData = new FormData();
+    const formData =
+      new FormData();
 
-    formData.append('name', name);
-    formData.append('description', description);
-    formData.append('price', price);
-    formData.append('category', category);
-    formData.append('image', image);
+    formData.append(
+      'name',
+      name
+    );
+
+    formData.append(
+      'description',
+      description
+    );
+
+    formData.append(
+      'price',
+      price
+    );
+
+    formData.append(
+      'category',
+      category
+    );
+
+    formData.append(
+      'image',
+      image
+    );
 
     setSaving(true);
     setMessage('');
 
     try {
 
-      const response = await fetch(
-        'http://localhost:5000/api/products',
-        {
-          method: 'POST',
-          body: formData
-        }
-      );
+      const response =
+        await fetch(
+          'http://localhost:5000/api/products',
+          {
+            method: 'POST',
+            body: formData
+          }
+        );
 
-      const data = await response.json();
+      const data =
+        await response.json();
 
       if (!response.ok) {
+
         throw new Error(
           data.message ||
           data.error ||
@@ -990,7 +2063,9 @@ function AddProduct({ onProductAdded }) {
         );
       }
 
-      setMessage('Product added successfully!');
+      setMessage(
+        'Product added successfully!'
+      );
 
       const newProduct = {
         id: data.productId,
@@ -1002,7 +2077,9 @@ function AddProduct({ onProductAdded }) {
       };
 
       if (onProductAdded) {
-        onProductAdded(newProduct);
+        onProductAdded(
+          newProduct
+        );
       }
 
       setName('');
@@ -1011,12 +2088,22 @@ function AddProduct({ onProductAdded }) {
       setCategory('Cake');
       setImage(null);
 
-      document.getElementById('product-image').value = '';
+      const input =
+        document.getElementById(
+          'product-image'
+        );
+
+      if (input) {
+        input.value = '';
+      }
 
     } catch (error) {
 
       console.error(error);
-      setMessage(error.message);
+
+      setMessage(
+        error.message
+      );
 
     } finally {
 
@@ -1025,41 +2112,50 @@ function AddProduct({ onProductAdded }) {
     }
   }
 
-
   return (
+
     <div className="form-card">
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={handleSubmit}
+      >
 
         <label>
+
           Product Name
 
           <input
             type="text"
             value={name}
             onChange={event =>
-              setName(event.target.value)
+              setName(
+                event.target.value
+              )
             }
             placeholder="Chocolate Truffle Cake"
             required
           />
+
         </label>
 
-
         <label>
+
           Description
 
           <textarea
             value={description}
             onChange={event =>
-              setDescription(event.target.value)
+              setDescription(
+                event.target.value
+              )
             }
             placeholder="Rich chocolate cake with chocolate frosting"
           />
+
         </label>
 
-
         <label>
+
           Price
 
           <input
@@ -1068,33 +2164,55 @@ function AddProduct({ onProductAdded }) {
             step="0.01"
             value={price}
             onChange={event =>
-              setPrice(event.target.value)
+              setPrice(
+                event.target.value
+              )
             }
             placeholder="550"
             required
           />
+
         </label>
 
-
         <label>
+
           Category
 
           <select
             value={category}
             onChange={event =>
-              setCategory(event.target.value)
+              setCategory(
+                event.target.value
+              )
             }
           >
-            <option value="Cake">Cake</option>
-            <option value="Pastry">Pastry</option>
-            <option value="Cupcake">Cupcake</option>
-            <option value="Bread">Bread</option>
-            <option value="Cookie">Cookie</option>
+
+            <option value="Cake">
+              Cake
+            </option>
+
+            <option value="Pastry">
+              Pastry
+            </option>
+
+            <option value="Cupcake">
+              Cupcake
+            </option>
+
+            <option value="Bread">
+              Bread
+            </option>
+
+            <option value="Cookie">
+              Cookie
+            </option>
+
           </select>
+
         </label>
 
-
         <label>
+
           Product Image
 
           <input
@@ -1102,28 +2220,36 @@ function AddProduct({ onProductAdded }) {
             type="file"
             accept="image/png,image/jpeg,image/webp"
             onChange={event =>
-              setImage(event.target.files[0])
+              setImage(
+                event.target.files[0]
+              )
             }
             required
           />
+
         </label>
 
-
         {image && (
-          <p>
-            Selected image: <strong>{image.name}</strong>
-          </p>
-        )}
 
+          <p>
+            Selected image:
+            {' '}
+            <strong>
+              {image.name}
+            </strong>
+          </p>
+
+        )}
 
         <button
           className="primary-button"
           type="submit"
           disabled={saving}
         >
-          {saving ? 'Saving...' : 'Save Product →'}
+          {saving
+            ? 'Saving...'
+            : 'Save Product →'}
         </button>
-
 
         {message && (
           <p>{message}</p>
@@ -1132,48 +2258,93 @@ function AddProduct({ onProductAdded }) {
       </form>
 
     </div>
+
   );
 }
 
-function Empty({ text = 'Empty.' }) {
+function Empty({
+  text = 'Empty.'
+}) {
+
   return (
+
     <div className="empty">
-      <div className="empty-icon">♡</div>
-      <p>{text}</p>
+
+      <div className="empty-icon">
+        ♡
+      </div>
+
+      <p>
+        {text}
+      </p>
+
     </div>
+
   );
 }
 
 function Track({ order }) {
-  const currentIndex = stages.indexOf(order.status);
+
+  const currentIndex =
+    stages.indexOf(
+      order.status
+    );
 
   return (
+
     <div className="tracking-card">
-      {stages.map((stage, index) => (
-        <div className="step" key={stage}>
-          <span
-            className={
-              index < currentIndex
-                ? 'done'
-                : index === currentIndex
-                ? 'current'
-                : ''
-            }
+
+      {stages.map(
+        (stage, index) => (
+
+          <div
+            className="step"
+            key={stage}
           >
-            {index < currentIndex ? '✓' : index + 1}
-          </span>
 
-          <div>
-            <b>{labels[stage]}</b>
+            <span
+              className={
+                index < currentIndex
+                  ? 'done'
+                  : index ===
+                    currentIndex
+                  ? 'current'
+                  : ''
+              }
+            >
+              {index <
+              currentIndex
+                ? '✓'
+                : index + 1}
+            </span>
 
-            {index === currentIndex && (
-              <small>In progress</small>
-            )}
+            <div>
+
+              <b>
+                {labels[stage]}
+              </b>
+
+              {index ===
+                currentIndex && (
+                <small>
+                  In progress
+                </small>
+              )}
+
+            </div>
+
           </div>
-        </div>
-      ))}
+
+        )
+      )}
+
     </div>
+
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(
+  document.getElementById('root')
+).render(
+  <App />
+);
