@@ -37,13 +37,42 @@ app.use("/api/products", productRoutes);
 
 app.get("/api/orders", async (q, s) => {
     try {
-        s.json(
-            (await db.query(
-                "SELECT * FROM orders ORDER BY created_at DESC"
-            ))[0]
+        // Get all orders
+        const [orders] = await db.query(
+            "SELECT * FROM orders ORDER BY created_at DESC"
         );
+
+        // Get all items belonging to those orders
+        const [items] = await db.query(
+            "SELECT * FROM order_items ORDER BY id"
+        );
+
+        // Attach items to their corresponding order
+        const ordersWithItems = orders.map(order => ({
+            ...order,
+
+            // Convert database column names to the names
+            // used by the React frontend
+            customerName: order.customer_name,
+
+            items: items
+                .filter(item => item.order_id === order.id)
+                .map(item => ({
+                    productId: item.product_id,
+                    name: item.product_name,
+                    price: item.price,
+                    qty: item.qty
+                }))
+        }));
+
+        s.json(ordersWithItems);
+
     } catch (e) {
-        s.status(500).json({ error: e.message });
+        console.error("Fetch orders error:", e);
+
+        s.status(500).json({
+            error: e.message
+        });
     }
 });
 

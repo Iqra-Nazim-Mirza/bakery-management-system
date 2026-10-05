@@ -1006,43 +1006,61 @@ function App() {
   const admin = () => {
 
     if (tab === 'orders') {
-      return (
-        <>
+  return (
+    <>
+      <div className="admin-heading">
+        <span className="eyebrow">
+          MANAGEMENT
+        </span>
 
-          <div className="admin-heading">
+        <h1>Orders</h1>
 
-            <span className="eyebrow">
-              MANAGEMENT
-            </span>
+        <p>
+          View and manage customer orders.
+        </p>
+      </div>
 
-            <h1>Orders</h1>
+      {orders.length === 0 ? (
+        <Empty text="No orders have been placed yet." />
+      ) : (
+        <div className="order-list">
 
-          </div>
+          {orders.map(order => (
+            <div
+              className="order admin-order"
+              key={order.id}
+              style={{
+                alignItems: 'flex-start',
+                flexDirection: 'column',
+                gap: '15px'
+              }}
+            >
 
-          <div className="order-list">
-
-            {orders.map(order => (
+              {/* ORDER HEADER */}
               <div
-                className="order admin-order"
-                key={order.id}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: '15px'
+                }}
               >
 
                 <div>
-
                   <b>
-                    {order.customerName}
+                    Order #{order.id}
                   </b>
 
                   <small>
-                    {order.type === 'custom'
-                      ? 'Custom · '
-                      : ''}
-                    {order.fulfillment} · ₹
-                    {Number(
-                      order.total
-                    ).toFixed(2)}
+                    Customer: {order.customerName}
                   </small>
 
+                  <small>
+                    {order.type === 'custom'
+                      ? 'Custom Order'
+                      : `Standard Order · ${order.fulfillment}`}
+                  </small>
                 </div>
 
                 <select
@@ -1054,7 +1072,6 @@ function App() {
                     )
                   }
                 >
-
                   {stages.map(stage => (
                     <option
                       value={stage}
@@ -1063,18 +1080,158 @@ function App() {
                       {labels[stage]}
                     </option>
                   ))}
-
                 </select>
 
               </div>
-            ))}
 
-          </div>
 
-        </>
-      );
-    }
+              {/* ORDER ITEMS */}
+              {order.items &&
+              order.items.length > 0 ? (
 
+                <div
+                  style={{
+                    width: '100%',
+                    borderTop: '1px solid var(--border)',
+                    paddingTop: '12px'
+                  }}
+                >
+
+                  <strong
+                    style={{
+                      display: 'block',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    Ordered Items
+                  </strong>
+
+                  {order.items.map(
+                    (item, index) => (
+                      <div
+                        key={
+                          item.productId ||
+                          item.id ||
+                          index
+                        }
+                        style={{
+                          display: 'flex',
+                          justifyContent:
+                            'space-between',
+                          gap: '15px',
+                          padding: '8px 0',
+                          borderBottom:
+                            '1px solid #f1e7e2'
+                        }}
+                      >
+
+                        <span>
+                          {item.name}
+                          {' × '}
+                          {item.qty}
+                        </span>
+
+                        <strong>
+                          ₹
+                          {(
+                            Number(item.price) *
+                            Number(item.qty)
+                          ).toFixed(2)}
+                        </strong>
+
+                      </div>
+                    )
+                  )}
+
+                </div>
+
+              ) : order.type === 'custom' ? (
+
+                <div
+                  style={{
+                    width: '100%',
+                    borderTop:
+                      '1px solid var(--border)',
+                    paddingTop: '12px'
+                  }}
+                >
+
+                  <strong>
+                    Custom Cake Request
+                  </strong>
+
+                  {order.notes && (
+                    <p
+                      style={{
+                        margin:
+                          '8px 0 0',
+                        color:
+                          'var(--muted)',
+                        lineHeight: '1.6'
+                      }}
+                    >
+                      {order.notes}
+                    </p>
+                  )}
+
+                </div>
+
+              ) : (
+
+                <div
+                  style={{
+                    width: '100%',
+                    borderTop:
+                      '1px solid var(--border)',
+                    paddingTop: '12px',
+                    color:
+                      'var(--muted)'
+                  }}
+                >
+                  Order item details unavailable.
+                </div>
+
+              )}
+
+
+              {/* ORDER TOTAL */}
+              <div
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent:
+                    'space-between',
+                  alignItems: 'center',
+                  paddingTop: '5px'
+                }}
+              >
+
+                <strong>
+                  Total
+                </strong>
+
+                <strong
+                  style={{
+                    color: 'var(--rose)',
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  ₹
+                  {Number(
+                    order.total
+                  ).toFixed(2)}
+                </strong>
+
+              </div>
+
+            </div>
+          ))}
+
+        </div>
+      )}
+    </>
+  );
+}
     if (tab === 'products') {
       return (
         <>
