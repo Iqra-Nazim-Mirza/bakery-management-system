@@ -496,7 +496,7 @@ function App() {
               </div>
 
               <div className="hero-circle">
-                BAKERY BLOOM
+                CakeStory
               </div>
 
             </div>
@@ -1784,7 +1784,7 @@ function App() {
         <div className="admin-heading">
 
           <span className="eyebrow">
-            BAKERY BLOOM
+            CakeStory
           </span>
 
           <h1>Dashboard</h1>
@@ -1963,7 +1963,7 @@ function App() {
               <span>
 
                 <strong>
-                  Bakery Bloom
+                  CakeStory
                 </strong>
 
                 <small>
@@ -2031,7 +2031,7 @@ function App() {
             <div>
 
               <strong>
-                Bakery Bloom
+                CakeStory
               </strong>
 
               <span>
@@ -2042,7 +2042,7 @@ function App() {
             </div>
 
             <span>
-              © 2026 Bakery Bloom
+              © 2026 CakeStory
             </span>
 
           </footer>
